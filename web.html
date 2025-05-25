@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zomato-like Food Delivery</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Visualization & Content Choices:
+        - Report Info: Restaurants, Menus, Orders -> Goal: Inform, Facilitate Transaction -> Method: Interactive list of Restaurant Cards, Menu Item Cards, Cart Items. -> Interaction: Click to view details, Add to cart, Remove from cart. -> Justification: Mimics core food delivery app functionality for direct user interaction. -> Library: React components, HTML/Tailwind.
+        - Report Info: Cuisine Distribution (Mock) -> Goal: Inform, Summarize -> Method: Doughnut Chart. -> Interaction: Hover for segment details. -> Justification: Visually represents data proportions in a clear, engaging way suitable for an admin overview. -> Library: Chart.js.
+        - Report Info: User Roles -> Goal: Organize, Inform -> Method: Role-switching buttons revealing simplified dashboards. -> Interaction: Click to switch role view. -> Justification: Demonstrates multi-role support without complex authentication. -> Library: React components, HTML/Tailwind.
+        - CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. All visuals are HTML/CSS/Tailwind based or Canvas (Chart.js).
+    -->
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .chart-container { position: relative; width: 100%; max-width: 400px; margin-left: auto; margin-right: auto; height: 300px; max-height: 350px; }
+        @media (min-width: 768px) { .chart-container { height: 350px; max-width: 500px; } }
+    </style>
+</head>
+<body class="bg-stone-100 text-stone-800 antialiased min-h-screen flex flex-col">
+
+    <div id="root" class="flex-grow flex flex-col"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+        const { createRoot } = ReactDOM;
+
+        // Mock Data
+        const mockRestaurants = [
+            {
+                id: 'r1',
+                name: 'The Spice Route',
+                cuisine: 'Indian',
+                rating: 4.5,
+                deliveryTime: '30-45 min',
+                minOrder: 150,
+                imageUrl: 'https://placehold.co/400x250/F0FDFA/0D9488?text=Spice+Route',
+                menu: [
+                    { id: 'm1', name: 'Butter Chicken', price: 350, description: 'Creamy tomato gravy with tender chicken.', category: 'Main Course' },
+                    { id: 'm2', name: 'Paneer Tikka Masala', price: 320, description: 'Cottage cheese in spicy gravy.', category: 'Main Course' },
+                    { id: 'm3', name: 'Garlic Naan', price: 70, description: 'Leavened flatbread with garlic.', category: 'Breads' },
+                    { id: 'm4', name: 'Gulab Jamun', price: 120, description: 'Deep-fried milk solids, soaked in sugar syrup.', category: 'Desserts' }
+                ]
+            },
+            {
+                id: 'r2',
+                name: 'Pizza Paradise',
+                cuisine: 'Italian',
+                rating: 4.2,
+                deliveryTime: '25-40 min',
+                minOrder: 200,
+                imageUrl: 'https://placehold.co/400x250/F0FDFA/0D9488?text=Pizza+Paradise',
+                menu: [
+                    { id: 'm5', name: 'Margherita Pizza', price: 400, description: 'Classic pizza with tomato, mozzarella, basil.', category: 'Pizzas' },
+                    { id: 'm6', name: 'Pepperoni Pizza', price: 480, description: 'Pepperoni, mozzarella, tomato sauce.', category: 'Pizzas' },
+                    { id: 'm7', name: 'Garlic Bread', price: 150, description: 'Toasted bread with garlic butter.', category: 'Sides' },
+                    { id: 'm8', name: 'Tiramisu', price: 200, description: 'Coffee-flavored Italian dessert.', category: 'Desserts' }
+                ]
+            },
+            {
+                id: 'r3',
+                name: 'Sushi Spot',
+                cuisine: 'Japanese',
+                rating: 4.7,
+                deliveryTime: '35-50 min',
+                minOrder: 300,
+                imageUrl: 'https://placehold.co/400x250/F0FDFA/0D9488?text=Sushi+Spot',
+                menu: [
+                    { id: 'm9', name: 'Salmon Nigiri (2 pcs)', price: 280, description: 'Fresh salmon on sushi rice.', category: 'Sushi' },
+                    { id: 'm10', name: 'California Roll (8 pcs)', price: 350, description: 'Crab stick, avocado, cucumber.', category: 'Rolls' },
+                    { id: 'm11', name: 'Miso Soup', price: 100, description: 'Traditional Japanese soup.', category: 'Soups' }
+                ]
+            },
+            {
+                id: 'r4',
+                name: 'Burger Bliss',
+                cuisine: 'American',
+                rating: 4.0,
+                deliveryTime: '20-35 min',
+                minOrder: 100,
+                imageUrl: 'https://placehold.co/400x250/F0FDFA/0D9488?text=Burger+Bliss',
+                menu: [
+                    { id: 'm12', name: 'Classic Cheeseburger', price: 250, description: 'Beef patty, cheese, lettuce, tomato.', category: 'Burgers' },
+                    { id: 'm13', name: 'Veggie Burger', price: 220, description: 'Patty made from mixed vegetables.', category: 'Burgers' },
+                    { id: 'm14', name: 'French Fries', price: 100, description: 'Crispy golden fries.', category: 'Sides' }
+                ]
+            }
+        ];
+
+        const mockCuisineData = {
+            labels: ['Indian', 'Italian', 'Japanese', 'American'],
+            data: [30, 25, 20, 25]
+        };
+
+        // Header Component
+        function Header({ navigateTo, cartItemCount }) {
+            return (
+                <header className="bg-teal-700 text-white p-4 shadow-md">
+                    <div className="container mx-auto flex justify-between items-center">
+                        <h1 className="text-2xl font-bold cursor-pointer" onClick={() => navigateTo('home')}>
+                            FoodieFinds
+                        </h1>
+                        <nav className="flex items-center space-x-4">
+                            <button className="text-white hover:text-teal-200 px-3 py-1 rounded-md transition-colors" onClick={() => navigateTo('home')}>Home</button>
+                            <button className="relative text-white hover:text-teal-200 px-3 py-1 rounded-md transition-colors" onClick={() => navigateTo('cart')}>
+                                Cart
+                                {cartItemCount > 0 && (
+                                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                                        {cartItemCount}
+                                    </span>
+                                )}
+                            </button>
+                            <button className="text-white hover:text-teal-200 px-3 py-1 rounded-md transition-colors" onClick={() => navigateTo('profile')}>Profile</button>
+                        </nav>
+                    </div>
+                </header>
+            );
+        }
+
+        // Restaurant Card Component
+        function RestaurantCard({ restaurant, onSelectRestaurant }) {
+            return (
+                <div
+                    className="bg-white rounded-lg shadow-md overflow-hidden cursor-pointer hover:shadow-lg transition-shadow duration-300 transform hover:-translate-y-1"
+                    onClick={() => onSelectRestaurant(restaurant.id)}
+                >
+                    <img src={restaurant.imageUrl} alt={restaurant.name} className="w-full h-40 object-cover" onError={(e) => { e.target.onerror = null; e.target.src="https://placehold.co/400x250/D6D3D1/6B7280?text=No+Image"; }} />
+                    <div className="p-4">
+                        <h3 className="text-xl font-semibold text-teal-700 mb-1">{restaurant.name}</h3>
+                        <p className="text-sm text-stone-600 mb-2">{restaurant.cuisine}</p>
+                        <div className="flex justify-between items-center text-sm text-stone-700">
+                            <span className="flex items-center">
+                                <span className="text-yellow-500 mr-1">&#9733;</span> {restaurant.rating}
+                            </span>
+                            <span>{restaurant.deliveryTime}</span>
+                            <span>Min Order: ₹{restaurant.minOrder}</span>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // Menu Item Component
+        function MenuItem({ item, onAddToCart }) {
+            return (
+                <div className="bg-white rounded-lg shadow-sm p-4 flex justify-between items-center mb-3 border border-stone-200">
+                    <div>
+                        <h4 className="text-lg font-semibold text-stone-800">{item.name}</h4>
+                        <p className="text-sm text-stone-600">{item.description}</p>
+                        <p className="text-md font-bold text-teal-600 mt-1">₹{item.price}</p>
+                    </div>
+                    <button
+                        className="bg-teal-600 text-white px-4 py-2 rounded-md hover:bg-teal-700 transition-colors"
+                        onClick={() => onAddToCart(item)}
+                    >
+                        Add
+                    </button>
+                </div>
+            );
+        }
+
+        // Home Page Component
+        function HomePage({ restaurants, onSelectRestaurant }) {
+            const [searchTerm, setSearchTerm] = useState('');
+            const [filterCuisine, setFilterCuisine] = useState('All');
+            const [sortOrder, setSortOrder] = useState('ratingDesc');
+
+            const availableCuisines = ['All', ...new Set(restaurants.map(r => r.cuisine))];
+
+            const filteredRestaurants = restaurants.filter(restaurant => {
+                const matchesSearch = restaurant.name.toLowerCase().includes(searchTerm.toLowerCase());
+                const matchesCuisine = filterCuisine === 'All' || restaurant.cuisine === filterCuisine;
+                return matchesSearch && matchesCuisine;
+            }).sort((a, b) => {
+                if (sortOrder === 'ratingDesc') return b.rating - a.rating;
+                if (sortOrder === 'ratingAsc') return a.rating - b.rating;
+                if (sortOrder === 'deliveryTimeAsc') {
+                    const timeA = parseInt(a.deliveryTime.split('-')[0]);
+                    const timeB = parseInt(b.deliveryTime.split('-')[0]);
+                    return timeA - timeB;
+                }
+                return 0;
+            });
+
+            return (
+                <div className="container mx-auto p-4">
+                    <div className="mb-6 flex flex-col sm:flex-row gap-4">
+                        <input
+                            type="text"
+                            placeholder="Search restaurants..."
+                            className="flex-grow p-3 border border-stone-300 rounded-md focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                        <select
+                            className="p-3 border border-stone-300 rounded-md bg-white focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                            value={filterCuisine}
+                            onChange={(e) => setFilterCuisine(e.target.value)}
+                        >
+                            {availableCuisines.map(cuisine => (
+                                <option key={cuisine} value={cuisine}>{cuisine}</option>
+                            ))}
+                        </select>
+                        <select
+                            className="p-3 border border-stone-300 rounded-md bg-white focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                            value={sortOrder}
+                            onChange={(e) => setSortOrder(e.target.value)}
+                        >
+                            <option value="ratingDesc">Rating (High to Low)</option>
+                            <option value="ratingAsc">Rating (Low to High)</option>
+                            <option value="deliveryTimeAsc">Delivery Time (Fastest)</option>
+                        </select>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                        {filteredRestaurants.length > 0 ? (
+                            filteredRestaurants.map(restaurant => (
+                                <RestaurantCard
+                                    key={restaurant.id}
+                                    restaurant={restaurant}
+                                    onSelectRestaurant={onSelectRestaurant}
+                                />
+                            ))
+                        ) : (
+                            <p className="text-center text-stone-600 col-span-full">No restaurants found matching your criteria.</p>
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        // Restaurant Detail Page Component
+        function RestaurantDetailPage({ restaurant, onAddToCart, navigateTo }) {
+            if (!restaurant) {
+                return (
+                    <div className="container mx-auto p-4 text-center text-stone-600">
+                        <p>Restaurant not found.</p>
+                        <button onClick={() => navigateTo('home')} className="mt-4 bg-teal-600 text-white px-4 py-2 rounded-md hover:bg-teal-700">Back to Home</button>
+                    </div>
+                );
+            }
+
+            const menuCategories = [...new Set(restaurant.menu.map(item => item.category))];
+            const [selectedCategory, setSelectedCategory] = useState(menuCategories[0]);
+
+            return (
+                <div className="container mx-auto p-4">
+                    <button onClick={() => navigateTo('home')} className="mb-4 text-teal-600 hover:underline flex items-center">
+                        <span className="mr-1">&#8592;</span> Back to Restaurants
+                    </button>
+                    <div className="bg-white rounded-lg shadow-md overflow-hidden mb-6">
+                        <img src={restaurant.imageUrl} alt={restaurant.name} className="w-full h-48 object-cover" onError={(e) => { e.target.onerror = null; e.target.src="https://placehold.co/800x300/D6D3D1/6B7280?text=No+Image"; }} />
+                        <div className="p-6">
+                            <h2 className="text-3xl font-bold text-teal-700 mb-2">{restaurant.name}</h2>
+                            <p className="text-md text-stone-600 mb-3">{restaurant.cuisine} • <span className="text-yellow-500">&#9733;</span> {restaurant.rating} • {restaurant.deliveryTime}</p>
+                            <p className="text-sm text-stone-700">Min Order: ₹{restaurant.minOrder}</p>
+                        </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 mb-6">
+                        {menuCategories.map(category => (
+                            <button
+                                key={category}
+                                className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${selectedCategory === category ? 'bg-teal-600 text-white' : 'bg-stone-200 text-stone-700 hover:bg-stone-300'}`}
+                                onClick={() => setSelectedCategory(category)}
+                            >
+                                {category}
+                            </button>
+                        ))}
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {restaurant.menu.filter(item => item.category === selectedCategory).map(item => (
+                            <MenuItem key={item.id} item={item} onAddToCart={onAddToCart} />
+                        ))}
+                    </div>
+                </div>
+            );
+        }
+
+        // Cart Page Component
+        function CartPage({ cart, updateCartItemQuantity, removeCartItem, navigateTo }) {
+            const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+
+            return (
+                <div className="container mx-auto p-4">
+                    <h2 className="text-2xl font-semibold text-teal-700 mb-6">Your Cart</h2>
+                    {cart.length === 0 ? (
+                        <div className="text-center text-stone-600">
+                            <p className="mb-4">Your cart is empty. Start adding some delicious food!</p>
+                            <button onClick={() => navigateTo('home')} className="bg-teal-600 text-white px-6 py-3 rounded-md hover:bg-teal-700 text-lg">Browse Restaurants</button>
+                        </div>
+                    ) : (
+                        <div className="bg-white rounded-lg shadow-md p-6">
+                            {cart.map(item => (
+                                <div key={item.id} className="flex justify-between items-center py-3 border-b border-stone-200 last:border-b-0">
+                                    <div>
+                                        <h4 className="text-lg font-semibold text-stone-800">{item.name}</h4>
+                                        <p className="text-sm text-stone-600">₹{item.price} x {item.quantity}</p>
+                                    </div>
+                                    <div className="flex items-center space-x-3">
+                                        <button
+                                            className="bg-stone-200 text-stone-700 px-2 py-1 rounded-md hover:bg-stone-300"
+                                            onClick={() => updateCartItemQuantity(item.id, item.quantity - 1)}
+                                        >
+                                            -
+                                        </button>
+                                        <span className="font-medium">{item.quantity}</span>
+                                        <button
+                                            className="bg-stone-200 text-stone-700 px-2 py-1 rounded-md hover:bg-stone-300"
+                                            onClick={() => updateCartItemQuantity(item.id, item.quantity + 1)}
+                                        >
+                                            +
+                                        </button>
+                                        <button
+                                            className="text-red-500 hover:text-red-700 text-xl"
+                                            onClick={() => removeCartItem(item.id)}
+                                        >
+                                            &times;
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                            <div className="mt-6 pt-4 border-t border-stone-300 flex justify-between items-center">
+                                <span className="text-xl font-bold text-stone-800">Total:</span>
+                                <span className="text-2xl font-bold text-teal-700">₹{total.toFixed(2)}</span>
+                            </div>
+                            <button
+                                className="mt-6 w-full bg-teal-600 text-white px-6 py-3 rounded-md hover:bg-teal-700 text-lg font-semibold"
+                                onClick={() => alert('Proceeding to mock checkout! (This is a frontend demo)')}
+                            >
+                                Proceed to Checkout
+                            </button>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        // Profile Page Component
+        function ProfilePage({ navigateTo }) {
+            const [currentRole, setCurrentRole] = useState('customer'); // 'customer', 'restaurant', 'admin'
+            const chartRef = useRef(null);
+            const chartInstance = useRef(null);
+
+            useEffect(() => {
+                if (currentRole === 'admin' && chartRef.current) {
+                    if (chartInstance.current) {
+                        chartInstance.current.destroy();
+                    }
+                    const ctx = chartRef.current.getContext('2d');
+                    chartInstance.current = new Chart(ctx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: mockCuisineData.labels,
+                            datasets: [{
+                                data: mockCuisineData.data,
+                                backgroundColor: ['#0D9488', '#2DD4BF', '#5EEAD4', '#99F6E4'],
+                                hoverOffset: 4
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    position: 'bottom',
+                                    labels: {
+                                        font: {
+                                            size: 12
+                                        }
+                                    }
+                                },
+                                tooltip: {
+                                    callbacks: {
+                                        label: function(context) {
+                                            let label = context.label || '';
+                                            if (label) {
+                                                label += ': ';
+                                            }
+                                            label += context.raw + '%';
+                                            return label;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }
+                return () => {
+                    if (chartInstance.current) {
+                        chartInstance.current.destroy();
+                        chartInstance.current = null;
+                    }
+                };
+            }, [currentRole]);
+
+            return (
+                <div className="container mx-auto p-4">
+                    <h2 className="text-2xl font-semibold text-teal-700 mb-6">Profile & Role Selection</h2>
+                    <div className="flex flex-wrap gap-4 mb-8 justify-center">
+                        <button
+                            className={`px-6 py-3 rounded-lg font-semibold transition-colors ${currentRole === 'customer' ? 'bg-teal-600 text-white' : 'bg-stone-200 text-stone-700 hover:bg-stone-300'}`}
+                            onClick={() => setCurrentRole('customer')}
+                        >
+                            Customer View
+                        </button>
+                        <button
+                            className={`px-6 py-3 rounded-lg font-semibold transition-colors ${currentRole === 'restaurant' ? 'bg-teal-600 text-white' : 'bg-stone-200 text-stone-700 hover:bg-stone-300'}`}
+                            onClick={() => setCurrentRole('restaurant')}
+                        >
+                            Restaurant Dashboard
+                        </button>
+                        <button
+                            className={`px-6 py-3 rounded-lg font-semibold transition-colors ${currentRole === 'admin' ? 'bg-teal-600 text-white' : 'bg-stone-200 text-stone-700 hover:bg-stone-300'}`}
+                            onClick={() => setCurrentRole('admin')}
+                        >
+                            Admin Dashboard
+                        </button>
+                    </div>
+
+                    <div className="bg-white rounded-lg shadow-md p-6">
+                        {currentRole === 'customer' && (
+                            <div>
+                                <h3 className="text-xl font-semibold text-teal-700 mb-4">Customer Profile</h3>
+                                <p className="text-stone-700 mb-2">Welcome back, User!</p>
+                                <p className="text-stone-600">This section would typically show your order history, saved addresses, payment methods, and favorite restaurants.</p>
+                                <button onClick={() => navigateTo('home')} className="mt-4 bg-teal-600 text-white px-4 py-2 rounded-md hover:bg-teal-700">Order Now</button>
+                            </div>
+                        )}
+                        {currentRole === 'restaurant' && (
+                            <div>
+                                <h3 className="text-xl font-semibold text-teal-700 mb-4">Restaurant Dashboard</h3>
+                                <p className="text-stone-700 mb-2">Welcome, The Spice Route!</p>
+                                <p className="text-stone-600">Here, you would manage your menu, view incoming orders, track sales, and update your restaurant's availability.</p>
+                                <div className="mt-4 p-4 bg-teal-50 rounded-md">
+                                    <p className="font-medium">New Orders: <span className="text-teal-700 font-bold">3</span></p>
+                                    <p className="font-medium">Today's Sales: <span className="text-teal-700 font-bold">₹15,200</span></p>
+                                </div>
+                            </div>
+                        )}
+                        {currentRole === 'admin' && (
+                            <div>
+                                <h3 className="text-xl font-semibold text-teal-700 mb-4">Admin Dashboard</h3>
+                                <p className="text-stone-700 mb-2">Welcome, Administrator!</p>
+                                <p className="text-stone-600">This dashboard provides an overview of platform operations, including user management, order monitoring, and overall analytics.</p>
+                                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="p-4 bg-teal-50 rounded-md">
+                                        <p className="font-medium">Total Users: <span className="text-teal-700 font-bold">12,345</span></p>
+                                        <p className="font-medium">Active Restaurants: <span className="text-teal-700 font-bold">120</span></p>
+                                        <p className="font-medium">Total Orders Today: <span className="text-teal-700 font-bold">789</span></p>
+                                    </div>
+                                    <div className="chart-container bg-white p-4 rounded-lg shadow">
+                                        <h4 className="text-md font-semibold text-stone-700 mb-2 text-center">Cuisine Distribution</h4>
+                                        <canvas ref={chartRef}></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        // Main App Component
+        function App() {
+            const [currentPage, setCurrentPage] = useState('home'); // 'home', 'restaurant', 'cart', 'profile'
+            const [selectedRestaurantId, setSelectedRestaurantId] = useState(null);
+            const [cart, setCart] = useState([]);
+
+            const selectedRestaurant = mockRestaurants.find(r => r.id === selectedRestaurantId);
+
+            const handleAddToCart = (item) => {
+                setCart(prevCart => {
+                    const existingItem = prevCart.find(cartItem => cartItem.id === item.id);
+                    if (existingItem) {
+                        return prevCart.map(cartItem =>
+                            cartItem.id === item.id ? { ...cartItem, quantity: cartItem.quantity + 1 } : cartItem
+                        );
+                    } else {
+                        return [...prevCart, { ...item, quantity: 1 }];
+                    }
+                });
+            };
+
+            const updateCartItemQuantity = (itemId, newQuantity) => {
+                setCart(prevCart => {
+                    if (newQuantity <= 0) {
+                        return prevCart.filter(item => item.id !== itemId);
+                    }
+                    return prevCart.map(item =>
+                        item.id === itemId ? { ...item, quantity: newQuantity } : item
+                    );
+                });
+            };
+
+            const removeCartItem = (itemId) => {
+                setCart(prevCart => prevCart.filter(item => item.id !== itemId));
+            };
+
+            const navigateTo = (page, restaurantId = null) => {
+                setCurrentPage(page);
+                setSelectedRestaurantId(restaurantId);
+            };
+
+            const cartItemCount = cart.reduce((count, item) => count + item.quantity, 0);
+
+            return (
+                <div className="flex flex-col min-h-screen">
+                    <Header navigateTo={navigateTo} cartItemCount={cartItemCount} />
+                    <main className="flex-grow">
+                        {currentPage === 'home' && (
+                            <HomePage restaurants={mockRestaurants} onSelectRestaurant={(id) => navigateTo('restaurant', id)} />
+                        )}
+                        {currentPage === 'restaurant' && (
+                            <RestaurantDetailPage restaurant={selectedRestaurant} onAddToCart={handleAddToCart} navigateTo={navigateTo} />
+                        )}
+                        {currentPage === 'cart' && (
+                            <CartPage cart={cart} updateCartItemQuantity={updateCartItemQuantity} removeCartItem={removeCartItem} navigateTo={navigateTo} />
+                        )}
+                        {currentPage === 'profile' && (
+                            <ProfilePage navigateTo={navigateTo} />
+                        )}
+                    </main>
+                    <footer className="bg-stone-800 text-stone-300 text-center p-4 mt-8">
+                        <p>&copy; {new Date().getFullYear()} FoodieFinds. All rights reserved.</p>
+                    </footer>
+                </div>
+            );
+        }
+
+        const root = createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
